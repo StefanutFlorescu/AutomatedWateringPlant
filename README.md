@@ -30,7 +30,12 @@ Beside the simple action of opening/closing the valve, which is also not that si
 ### Q6 - Do I neet an ESP32
 If I am not allowed to use my ESP8266, then the answer is YES. If I can use my own microcontroller then NO.
 
-Diagram:
-[Sensors] → [ESP] → [Raspberry Pi] → [ESP] → [Valve]
-                          ↑
+## Diagram
+```
+[Sensors] -> [ESP] -> [Raspberry Pi] -> [ESP] -> [Valve]
+                          ^
                        [Phone App]
+```
+
+![Diagram](./photos/Diagram.png)
+
