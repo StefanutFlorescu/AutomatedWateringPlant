@@ -1,5 +1,5 @@
 # AutomatedWateringPlant
-`
+
 ## Description
 An intelligent automated plant watering system that uses **machine learning** to decide when plants need water. The system monitors environmental conditions (temperature, humidity, light, soil moisture) via sensors connected to an **ESP32 microcontroller**, sends the data to a **Raspberry Pi Zero** running a Flask API with a **TensorFlow Lite ML model**, and automatically activates watering based on predictions. 
 
@@ -15,7 +15,6 @@ The system features a **responsive web interface** accessible from any device fo
 - **LDR (Light Dependent Resistor)** - Detects ambient light intensity
 - **Water level sensor** - Monitors water reservoir status
 - **Water pump** - Activates watering
-- **Relay module** - Controls 12V pump from ESP32 (5V/3.3V signal)
 
 ### Additional Materials
 - Plant pot
