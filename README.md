@@ -1,41 +1,298 @@
 # AutomatedWateringPlant
+`
 ## Description
-In this project I am going to build a full watering system for small plants that will use a microcontroller to read parameters and decide if the plants needs water or not
-I am going to read the sensors and then send the values to a more powerful device(a raspberry pi zero that i own). Of course on the "more powerful device" i want to integrate a simple CNN that I will build. Beside that I want to implement a simple UI app(probably a web app) for the phone to control the system.
+An intelligent automated plant watering system that uses **machine learning** to decide when plants need water. The system monitors environmental conditions (temperature, humidity, light, soil moisture) via sensors connected to an **ESP32 microcontroller**, sends the data to a **Raspberry Pi Zero** running a Flask API with a **TensorFlow Lite ML model**, and automatically activates watering based on predictions. 
 
-## Bill of materials
-- Esp32(I already have an Esp8266 and I kind of want to use it)
-- Raspberry pi zero(I will use it either connected directly to the microcontroller, or make it a simple server and connect to it via phone)
-- Electrovalve
-- Humidity Sensor
-- Light Sensor
-- Temperature Sensor
-- Pot
-- Dirt
-- Flower
-  
-I don't plan to follow any tutorials.
+The system features a **responsive web interface** accessible from any device for real-time monitoring and manual control, with automatic/manual mode switching and safety protections.
+
+## Bill of Materials
+
+### Electronics
+- **ESP32** microcontroller (WiFi-enabled)
+- **Raspberry Pi Zero** (runs ML model and Flask API server)
+- **DHT11 sensor** - Temperature and air humidity measurement
+- **Capacitive soil moisture sensor** - Monitors soil moisture levels
+- **LDR (Light Dependent Resistor)** - Detects ambient light intensity
+- **Water level sensor** - Monitors water reservoir status
+- **Water pump** - Activates watering
+- **Relay module** - Controls 12V pump from ESP32 (5V/3.3V signal)
+
+### Additional Materials
+- Plant pot
+- Soil
+- Plant
+- Water reservoir/container
+- Tubing for water delivery
+- Power supply
+- Jumper wires and breadboard
+
+## Features
+
+### Key Functionality
+- **Machine Learning Predictions**: TensorFlow Lite model optimized for Raspberry Pi Zero (ARMv6)
+- **Real-time Sensor Monitoring**: Temperature, humidity, light, and soil moisture
+- **Automatic Watering**: Based on ML predictions or light-based fallback logic
+- **Web Dashboard**: Responsive interface accessible from phone/computer
+- **Manual/Auto Modes**: Complete control with manual override capability
+- **Safety Features**: Water level monitoring prevents pump dry-running
+- **WiFi Communication**: ESP32 ↔ Raspberry Pi via HTTP/REST API
+
+### Operating Modes
+
+**AUTO Mode:**
+- Continuously reads all sensors every second
+- Sends environmental data to Flask ML API every 5 seconds
+- Receives ML prediction for watering decision
+- Falls back to light-based logic if ML unavailable
+- Automatic watering activation when conditions met
+- Water tank safety protection always active
+
+**MANUAL Mode:**
+- Direct control via web interface
+- Override automatic decisions
+- Still respects water tank safety (won't run pump if tank empty)
+- Real-time sensor data display
+
+## System Architecture
+
+### Component Communication Flow
+```
+┌─────────────┐      WiFi/HTTP       ┌──────────────────┐
+│   ESP32     │ ──────────────────>  │  Raspberry Pi    │
+│             │   POST /predict      │  Flask API       │
+│  - DHT11    │                      │  + ML Model      │
+│  - LDR      │ <────────────────── │  (TFLite)        │
+│  - Soil     │   JSON Response      │                  │
+│  - Water    │                      │                  │
+│  - Pump     │                      │                  │
+└─────────────┘                      └──────────────────┘
+      ↑                                       
+      │                                       
+  ┌───┴────┐                                 
+  │ Web UI │  (Hosted on ESP32, port 8080)   
+  └────────┘                                 
+```
+
+### Data Flow
+1. **ESP32** reads sensors (temperature, humidity, light, soil moisture, water level)
+2. **ESP32** sends data to **Raspberry Pi** `/predict` endpoint via HTTP POST
+3. **Raspberry Pi** normalizes data using saved scaler
+4. **TFLite model** runs inference and returns prediction
+5. **ESP32** receives decision (`should_water: true/false`)
+6. **ESP32** activates/deactivates pump (with safety checks)
+7. **Web interface** displays real-time status and allows manual control
+
+## Project Structure
+
+```
+AutomatedWateringPlant/
+│
+├── ESP32_Code/
+│   └── Automate_Watering.ino       # ESP32 firmware (sensors + web server)
+│
+├── Raspberry_Pi_Code/
+│   ├── app.py                      # Flask API with ML inference
+│   ├── udare_model.tflite          # TensorFlow Lite model (optimized)
+│   ├── scaler.pkl                  # Feature normalization scaler
+│   ├── setup_pi.sh                 # Automated setup script
+│   └── start_api.sh                # API startup script
+│
+├── Train_Code/
+│   ├── train.py                    # ML model training script
+│   └── water_data.csv              # Training dataset (103 samples)
+│
+├── photos/                         # Project photos and diagrams
+│
+├── README.md                       # This file
+└── PROJECT_VERIFICATION.md         # Technical verification report
+```
+
+## Setup Instructions
+
+### 1. Train the ML Model (on Laptop/PC)
+
+```bash
+cd Train_Code/
+python train.py
+```
+
+**Outputs:**
+- `udare_model.tflite` - Optimized model for Raspberry Pi
+- `scaler.pkl` - Feature normalization scaler
+- `udare_model.h5` - Full Keras model (optional)
+
+### 2. Setup Raspberry Pi Zero
+
+```bash
+cd Raspberry_Pi_Code/
+
+# Copy model files from training
+cp ../Train_Code/udare_model.tflite .
+cp ../Train_Code/scaler.pkl .
+
+# Run automated setup (installs dependencies, creates venv)
+bash setup_pi.sh
+
+# Start the API server
+bash start_api.sh
+```
+
+**API will be accessible at:** `http://<raspberry-pi-ip>:5000`
+
+**Endpoints:**
+- `GET /` - Status information
+- `GET /health` - Health check
+- `POST /predict` - ML prediction endpoint
+- `POST /batch_predict` - Batch predictions
+
+### 3. Configure and Upload ESP32 Code
+
+1. Open `ESP32_Code/Automate_Watering.ino` in Arduino IDE
+2. Update WiFi credentials:
+   ```cpp
+   const char* wifiSsid = "YOUR_WIFI_SSID";
+   const char* wifiPassword = "YOUR_WIFI_PASSWORD";
+   ```
+3. Update Raspberry Pi IP address:
+   ```cpp
+   const char* apiHost = "192.168.1.XXX";  // Your Pi's IP
+   ```
+4. Upload to ESP32
+
+### 4. Access Web Interface
+
+After ESP32 boots and connects to WiFi:
+- Check serial monitor for IP address
+- Navigate to: `http://<esp32-ip>:8080`
+- View real-time sensor data
+- Switch between AUTO/MANUAL modes
+- Control watering manually
+
+## Hardware Connections
+
+### ESP32 Pin Configuration
+```
+DHT11 DATA    → GPIO 4
+LDR           → GPIO 34 (ADC1_CH6)
+Soil Sensor   → GPIO 35 (ADC1_CH7)
+Water Level   → GPIO 36 (ADC1_CH0)
+Pump Relay    → GPIO 25
+```
+
+### Sensor Calibration (in code)
+```cpp
+int ldrThresh   = 800;   // Light threshold for watering
+int soilDry     = 3000;  // ADC value when soil is dry
+int soilWet     = 1200;  // ADC value when soil is wet
+int waterThresh = 300;   // Water level threshold
+```
+
+## API Reference
+
+### POST /predict
+
+**Request:**
+```json
+{
+  "temperature": 25.5,
+  "air_humidity": 45.0,
+  "luminosity": 800.0
+}
+```
+
+**Response:**
+```json
+{
+  "should_water": true,
+  "probability": 0.87,
+  "input": {
+    "temperature": 25.5,
+    "air_humidity": 45.0,
+    "luminosity": 800.0
+  }
+}
+```
 
 ## Questions
+
 ### Q1 - What is the system boundary?
-The microcontroller (Esp32 or Esp8266) will control the valve and gather the sensor information and will send them to a raspberry pi server where I will process the information. Also there is going to be a nice UI on the phone to manually control the system and to activate the automation.
+The **ESP32 microcontroller** controls the water pump and gathers sensor information (temperature, humidity, light, soil moisture, water level). It sends this data to a **Raspberry Pi Zero server** where ML inference happens via a Flask API. The system includes a **web interface** hosted on the ESP32 for monitoring and manual control, accessible from any device on the same network.
+
 ### Q2 - Where does intelligence live?
-The collecting sensor part and the action(opening the electrovale) will be taken by the microcontroller, but the CNN will be on the Raspberry pi. So probabbly it is right to say that the intelligence is more on the raspberry pi.
+The intelligence is distributed:
+- **ESP32**: Sensor reading, water level safety logic, web server, fallback light-based logic
+- **Raspberry Pi**: ML model inference (TensorFlow Lite), data normalization, prediction logic
+- The **primary intelligence** (ML decision-making) resides on the Raspberry Pi
+
 ### Q3 - What is the hardest technical problem?
-The main problem is the fact that the electrovalve works with 12V and the microcontroller only outputs 5v. The second one is of course building the CNN.
+1. **Solved:** Building and optimizing ML model - Implemented neural network with TensorFlow Lite conversion for Raspberry Pi Zero (ARMv6) compatibility
+2. **Solved:** Watering the plant - Wanted to use a solenoid valve, but I got a better idea of using a small water pump
+
 ### Q4 - What is the minimum demo?
-A flower pot where i can open/close the valve and the water flows in. I control the actions from my phone app where I can see different things about the plant. Also I can press a button where everything is fully automated and I don't need to do anything again.
+**Achieved and exceeded:**
+- Water pump activation/deactivation via web interface ✓
+- Real-time sensor monitoring on web dashboard ✓
+- AUTO mode with ML-based watering decisions ✓
+- MANUAL mode for direct user control ✓
+- Water tank level monitoring with safety protection ✓
+- Responsive web UI accessible from phone/computer ✓
+
 ### Q5 - Why is this not just a tutorial?
-Beside the simple action of opening/closing the valve, which is also not that simple because at this moment I am not 100% sure how I am going to give it 12V, I will build a simple app and the CNN part. This is probbably a good product to sale and this is an MVP. I am 100% sure I can then sell the product to my family.
-### Q6 - Do I neet an ESP32
-If I am not allowed to use my ESP8266, then the answer is YES. If I can use my own microcontroller then NO.
+This is a complete **original implementation** featuring:
+- **Custom ML model** trained on collected environmental data
+- **TensorFlow Lite optimization** specifically for Raspberry Pi Zero ARMv6
+- **Original web interface** with real-time updates and dual mode operation
+- **Safety features**: Water level monitoring, pump dry-run protection
+- **Fallback logic**: System continues working even if ML API is unavailable
+- **Complete integration** of hardware, firmware, ML backend, and web frontend
+- **Production-ready** with automated setup scripts and error handling
 
-## Diagram
-```
-[Sensors] -> [ESP] -> [Raspberry Pi] -> [ESP] -> [Valve]
-                          ^
-                       [Phone App]
-```
+This is a **marketable MVP** - a complete IoT + ML product, not a tutorial project.
 
-![Diagram](./photos/Diagram.png)
+### Q6 - Do I need an ESP32?
+**Yes, ESP32 is used** for its:
+- Built-in WiFi capability (essential for API communication)
+- Multiple ADC pins for sensors (ESP8266 has only one)
+- Sufficient processing power for web server + sensor management
+- Better Arduino library support and stability
 
+## Technologies Used
+
+- **Hardware**: ESP32, Raspberry Pi Zero, DHT11, capacitive sensors, relay
+- **Firmware**: C++ (Arduino framework)
+- **Backend**: Python, Flask, TensorFlow Lite, NumPy, scikit-learn
+- **ML Model**: Neural Network (Sequential: Dense layers with ReLU/Sigmoid)
+- **Frontend**: HTML5, CSS3, JavaScript (Vanilla)
+- **Protocols**: HTTP/REST, JSON, WiFi
+- **Optimization**: TFLite for ARM, MinMax scaling, float32 precision
+
+## Photos
+
+### Hardware Setup
+![Hardware Setup](./photos/Automated_Watering_Setup_1.jpg)
+![Hardware Setup](./photos/Automated_Watering_Setup_2.jpg)
+
+### Web Dashboard
+![Web Dashboard](photos/Automated_Watering_WEB.png)
+
+### Phone Dashboard
+![Phone Dashboard](photos/Automated_Watering_phone_2.jpg)
+![Phone Dashboard](photos/Automated_Watering_phone_1.jpg)
+
+## Video
+[Automated Watering Plant Demo](https://youtu.be/XNLnl4KjuUw)
+
+## Conclusion
+
+**AutomatedWateringPlant** is a complete end-to-end IoT + Machine Learning system that demonstrates how intelligent decision-making can be embedded into real-world hardware projects.
+
+This project goes beyond basic automation by:
+- Integrating **machine learning inference** on edge hardware
+- Ensuring **fault tolerance** through fallback logic
+- Providing **real-time visibility and control** via a web interface
+- Implementing **hardware safety protections**
+- Maintaining a clean, modular, and production-ready architecture
+
+The system is fully functional, extensible, and suitable as a foundation for a commercial smart agriculture or smart home product.
+
+---
